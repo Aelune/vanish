@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
 // Config represents the TOML configuration
@@ -26,6 +27,28 @@ type Config struct {
 		Enabled   bool   `toml:"enabled"`
 		Directory string `toml:"directory"`
 	} `toml:"logging"`
+	UI struct {
+		Theme string `toml:"theme"` // "default", "dark", "light", "cyberpunk", "minimal"
+		Colors struct {
+			Primary     string `toml:"primary"`
+			Secondary   string `toml:"secondary"`
+			Success     string `toml:"success"`
+			Warning     string `toml:"warning"`
+			Error       string `toml:"error"`
+			Text        string `toml:"text"`
+			Muted       string `toml:"muted"`
+			Border      string `toml:"border"`
+			Highlight   string `toml:"highlight"`
+			// Background string `toml:"background"`
+		} `toml:"colors"`
+		Progress struct {
+			Style      string `toml:"style"` // "gradient", "solid", "rainbow"
+			ShowEmoji  bool   `toml:"show_emoji"`
+			Animation  bool   `toml:"animation"`
+		} `toml:"progress"`
+		PaddingX int `toml:"padding_x"`
+		PaddingY int `toml:"padding_y"`
+	} `toml:"ui"`
 }
 
 // DeletedItem represents an item in the global index
@@ -53,6 +76,24 @@ type FileInfo struct {
 	Error       string
 }
 
+// ThemeStyles holds all the styled components
+type ThemeStyles struct {
+	Root     lipgloss.Style
+	Header      lipgloss.Style
+	Question    lipgloss.Style
+	Filename    lipgloss.Style
+	Success     lipgloss.Style
+	Error       lipgloss.Style
+	Warning     lipgloss.Style
+	Info        lipgloss.Style
+	Help        lipgloss.Style
+	Progress    lipgloss.Style
+	Border      lipgloss.Style
+	List        lipgloss.Style
+	StatusGood  lipgloss.Style
+	StatusBad   lipgloss.Style
+}
+
 // Model represents the application state
 type Model struct {
 	filenames      []string
@@ -64,51 +105,247 @@ type Model struct {
 	confirmed      bool
 	errorMsg       string
 	config         Config
+	styles         ThemeStyles
 	processedItems []DeletedItem
 	clearAll       bool
 	totalFiles     int
 	processedFiles int
 }
 
-var (
-	questionStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#3B82F6")) // bright blue
+type filesExistMsg struct {
+	fileInfos []FileInfo
+}
 
-	deleterName = lipgloss.NewStyle().
-		Bold(true).
-		Underline(true).
-		Foreground(lipgloss.Color("#FBBF24")) // amber/yellow highlight for filename
+type fileMoveMsg struct {
+	item DeletedItem
+	err  error
+}
 
-	normalStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#CBD5E1")). // light slate gray
-		Background(lipgloss.Color("#1E293B")). // dark slate blue background
-		Padding(0, 1)
+type cleanupMsg struct{}
 
-	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F87171")). // pastel red
-		Bold(true).
-		Background(lipgloss.Color("#7F1D1D")). // dark red background
-		Padding(0, 1).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#FCA5A5")) // soft red border
+type clearMsg struct {
+	err error
+}
 
-	successStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#34D399")). // mint green
-		Bold(true).
-		Background(lipgloss.Color("#064E3B")). // dark green background
-		Padding(0, 1).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#6EE7B7")) // light mint border
+type errorMsg string
 
-	helpStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#94A3B8")). // muted gray-blue
-		Italic(true).
-		Padding(0, 1)
 
-	warningStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F59E0B")). // amber
-		Bold(true)
-)
+func getTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 80 // fallback width
+	}
+	return width
+}
+
+func getDefaultThemes() map[string]Config {
+	themes := make(map[string]Config)
+
+	// Default theme
+	defaultTheme := Config{}
+	defaultTheme.UI.Theme = "default"
+	defaultTheme.UI.Colors.Primary = "#3B82F6"
+	defaultTheme.UI.Colors.Secondary = "#6366F1"
+	defaultTheme.UI.Colors.Success = "#10B981"
+	defaultTheme.UI.Colors.Warning = "#F59E0B"
+	defaultTheme.UI.Colors.Error = "#EF4444"
+	defaultTheme.UI.Colors.Text = "#F9FAFB"
+	defaultTheme.UI.Colors.Muted = "#9CA3AF"
+	defaultTheme.UI.Colors.Border = "#374151"
+	defaultTheme.UI.Colors.Highlight = "#FBBF24"
+	defaultTheme.UI.Progress.Style = "gradient"
+	defaultTheme.UI.Progress.ShowEmoji = true
+	defaultTheme.UI.Progress.Animation = true
+	themes["default"] = defaultTheme
+
+	// Dark theme
+	darkTheme := Config{}
+	darkTheme.UI.Theme = "dark"
+	darkTheme.UI.Colors.Primary = "#8B5CF6"
+	darkTheme.UI.Colors.Secondary = "#A78BFA"
+	darkTheme.UI.Colors.Success = "#34D399"
+	darkTheme.UI.Colors.Warning = "#FBBF24"
+	darkTheme.UI.Colors.Error = "#F87171"
+	darkTheme.UI.Colors.Text = "#E2E8F0"
+	darkTheme.UI.Colors.Muted = "#64748B"
+	darkTheme.UI.Colors.Border = "#1E293B"
+	darkTheme.UI.Colors.Highlight = "#FDE047"
+	darkTheme.UI.Progress.Style = "gradient"
+	darkTheme.UI.Progress.ShowEmoji = true
+	darkTheme.UI.Progress.Animation = true
+	themes["dark"] = darkTheme
+
+	// Light theme
+	lightTheme := Config{}
+	lightTheme.UI.Theme = "light"
+	lightTheme.UI.Colors.Primary = "#2563EB"
+	lightTheme.UI.Colors.Secondary = "#4F46E5"
+	lightTheme.UI.Colors.Success = "#059669"
+	lightTheme.UI.Colors.Warning = "#D97706"
+	lightTheme.UI.Colors.Error = "#DC2626"
+	lightTheme.UI.Colors.Text = "#1F2937"
+	lightTheme.UI.Colors.Muted = "#6B7280"
+	lightTheme.UI.Colors.Border = "#E5E7EB"
+	lightTheme.UI.Colors.Highlight = "#F59E0B"
+	lightTheme.UI.Progress.Style = "solid"
+	lightTheme.UI.Progress.ShowEmoji = true
+	lightTheme.UI.Progress.Animation = false
+	themes["light"] = lightTheme
+
+	// Cyberpunk theme
+	cyberpunkTheme := Config{}
+	cyberpunkTheme.UI.Theme = "cyberpunk"
+	cyberpunkTheme.UI.Colors.Primary = "#00FFFF"
+	cyberpunkTheme.UI.Colors.Secondary = "#FF00FF"
+	cyberpunkTheme.UI.Colors.Success = "#00FF00"
+	cyberpunkTheme.UI.Colors.Warning = "#FFFF00"
+	cyberpunkTheme.UI.Colors.Error = "#FF0040"
+	cyberpunkTheme.UI.Colors.Text = "#00FFFF"
+	cyberpunkTheme.UI.Colors.Muted = "#8A2BE2"
+	cyberpunkTheme.UI.Colors.Border = "#FF00FF"
+	cyberpunkTheme.UI.Colors.Highlight = "#FFFF00"
+	cyberpunkTheme.UI.Progress.Style = "rainbow"
+	cyberpunkTheme.UI.Progress.ShowEmoji = false
+	cyberpunkTheme.UI.Progress.Animation = true
+	themes["cyberpunk"] = cyberpunkTheme
+
+	// Minimal theme
+	minimalTheme := Config{}
+	minimalTheme.UI.Theme = "minimal"
+	minimalTheme.UI.Colors.Primary = "#000000"
+	minimalTheme.UI.Colors.Secondary = "#404040"
+	minimalTheme.UI.Colors.Success = "#008000"
+	minimalTheme.UI.Colors.Warning = "#FFA500"
+	minimalTheme.UI.Colors.Error = "#FF0000"
+	minimalTheme.UI.Colors.Text = "#000000"
+	minimalTheme.UI.Colors.Muted = "#808080"
+	minimalTheme.UI.Colors.Border = "#C0C0C0"
+	minimalTheme.UI.Colors.Highlight = "#0000FF"
+	minimalTheme.UI.Progress.Style = "solid"
+	minimalTheme.UI.Progress.ShowEmoji = false
+	minimalTheme.UI.Progress.Animation = false
+	themes["minimal"] = minimalTheme
+
+	return themes
+}
+
+func createThemeStyles(cfg Config) ThemeStyles {
+	border := lipgloss.NormalBorder()
+	rounded := lipgloss.RoundedBorder()
+	dashes := lipgloss.Border{
+		Top:         "─",
+		Bottom:      "─",
+		Left:        "│",
+		Right:       "│",
+		TopLeft:     "╭",
+		TopRight:    "╮",
+		BottomLeft:  "╰",
+		BottomRight: "╯",
+	}
+
+	termWidth := getTerminalWidth()
+	contentWidth := termWidth - (cfg.UI.PaddingX * 2) // Account for root padding
+
+	return ThemeStyles{
+		Root: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Text)).
+			// Background(lipgloss.Color(cfg.UI.Colors.Background)).
+			Width(termWidth).
+			Padding(cfg.UI.PaddingY, cfg.UI.PaddingX),
+
+		Header: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Primary)).
+			Bold(true).
+			Underline(true).
+			PaddingBottom(1).
+			Width(contentWidth),
+
+		Question: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Secondary)).
+			Bold(true).
+			MarginBottom(1).
+			Width(contentWidth),
+
+		Filename: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Highlight)).
+			Bold(true),
+
+		Info: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Muted)).
+			Width(contentWidth),
+
+		Warning: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Warning)).
+			Bold(true).
+			Italic(true).
+			Width(contentWidth),
+
+		Error: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Error)).
+			Bold(true).
+			Border(dashes, true).
+			Padding(0, 1).
+			Width(contentWidth - 4). // Account for border and padding
+			Align(lipgloss.Center),
+
+		Success: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Success)).
+			Bold(true).
+			Border(rounded, true).
+			Padding(0, 1).
+			Width(contentWidth - 4). // Account for border and padding
+			Align(lipgloss.Center),
+
+		List: lipgloss.NewStyle().
+			MarginLeft(2).
+			Border(border, false, false, false, true).
+			BorderForeground(lipgloss.Color(cfg.UI.Colors.Border)).
+			Width(contentWidth - 3), // Account for margin and border
+			// Background(lipgloss.Color(cfg.UI.Colors.Background)), // Ensure background color
+
+		Help: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Highlight)).
+			Italic(true).
+			MarginTop(1).
+			Width(contentWidth),
+
+		Progress: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Primary)).
+			Bold(true).
+			Width(contentWidth),
+
+		StatusBad: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(cfg.UI.Colors.Error)).
+			Italic(true).
+			Underline(true),
+	}
+}
+
+// Helper function to render list
+func renderList(content string, style lipgloss.Style, width int) string {
+	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
+	var renderedLines []string
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			// Skip completely empty lines to avoid extra background
+			continue
+		} else {
+			// Pad each line to the full width minus border and margin
+			lineWidth := lipgloss.Width(line)
+			targetWidth := width - 3 // Account for margin (2) and border (1)
+			if lineWidth < targetWidth {
+				paddedLine := line + strings.Repeat(" ", targetWidth-lineWidth)
+				renderedLines = append(renderedLines, paddedLine)
+			} else {
+				renderedLines = append(renderedLines, line)
+			}
+		}
+	}
+
+	// Join without adding extra newlines at the end
+	return style.Render(strings.Join(renderedLines, "\n"))
+}
 
 func loadConfig() (Config, error) {
 	homeDir, err := os.UserHomeDir()
@@ -125,10 +362,30 @@ func loadConfig() (Config, error) {
 	config.Logging.Enabled = true
 	config.Logging.Directory = filepath.Join(homeDir, ".cache", "saferm", "logs")
 
+	// Apply default theme
+	themes := getDefaultThemes()
+	defaultTheme := themes["default"]
+	config.UI = defaultTheme.UI
+
 	// Try to load config file
 	if _, err := os.Stat(configPath); err == nil {
 		if _, err := toml.DecodeFile(configPath, &config); err != nil {
 			return config, fmt.Errorf("error parsing config file: %v", err)
+		}
+
+		// If a theme is specified, apply it but preserve any custom color overrides
+		if config.UI.Theme != "" && config.UI.Theme != "default" {
+			if themeConfig, exists := themes[config.UI.Theme]; exists {
+				// Save current custom colors
+				customColors := config.UI.Colors
+				// Apply theme
+				config.UI = themeConfig.UI
+				// Restore any custom colors that were explicitly set
+				if customColors.Primary != "" {
+					config.UI.Colors.Primary = customColors.Primary
+				}
+				// ... repeat for other colors as needed
+			}
 		}
 	} else {
 		// Create default config file
@@ -157,9 +414,74 @@ days = 10
 enabled = true
 # Directory for log files (relative to cache directory)
 directory = ".cache/saferm/logs"
+
+[ui]
+# Theme: "default", "dark", "light", "cyberpunk", "minimal"
+theme = "default"
+
+[ui.colors]
+# Color customization (hex colors)
+primary = "#3B82F6"      # Main accent color
+secondary = "#6366F1"    # Secondary accent
+success = "#10B981"      # Success messages
+warning = "#F59E0B"      # Warning messages
+error = "#EF4444"        # Error messages
+text = "#F9FAFB"         # Main text color
+muted = "#9CA3AF"        # Muted/help text
+border = "#374151"       # Border color
+highlight = "#FBBF24"    # Filename highlight
+
+[ui.progress]
+# Progress bar settings
+style = "gradient"       # "gradient", "solid", "rainbow"
+show_emoji = true        # Show emoji in progress messages
+animation = true         # Enable progress animations
 `
 
 	return os.WriteFile(configPath, []byte(configContent), 0644)
+}
+
+func setupProgress(config Config) progress.Model {
+	width := 50
+	primary := config.UI.Colors.Primary
+	secondary := config.UI.Colors.Secondary
+
+	var prog progress.Model
+
+	switch config.UI.Progress.Style {
+	case "solid":
+		prog = progress.New(
+			progress.WithSolidFill(primary),
+		)
+
+	case "rainbow":
+		// Fake a rainbow using red → violet
+		// Note: only 2 colors allowed in WithGradient
+		prog = progress.New(
+			progress.WithGradient("#FF0000", "#8B00FF"),
+		)
+
+	case "striped":
+		// Alternate gradient using user colors
+		prog = progress.New(
+			progress.WithGradient(primary, secondary),
+		)
+
+	case "simple":
+		// Use bubbletea's built-in default gradient
+		prog = progress.New(
+			progress.WithDefaultGradient(),
+		)
+
+	default:
+		// Fallback to gradient with user-defined primary → secondary
+		prog = progress.New(
+			progress.WithGradient(primary, secondary),
+		)
+	}
+
+	prog.Width = width
+	return prog
 }
 
 func initialModel(filenames []string, clearAll bool) (Model, error) {
@@ -168,8 +490,8 @@ func initialModel(filenames []string, clearAll bool) (Model, error) {
 		return Model{}, err
 	}
 
-	prog := progress.New(progress.WithDefaultGradient())
-	prog.Width = 50
+	prog := setupProgress(config)
+	styles := createThemeStyles(config)
 
 	return Model{
 		filenames:      filenames,
@@ -177,6 +499,7 @@ func initialModel(filenames []string, clearAll bool) (Model, error) {
 		state:          "checking",
 		progress:       prog,
 		config:         config,
+		styles:         styles,
 		clearAll:       clearAll,
 		processedItems: make([]DeletedItem, 0),
 		totalFiles:     len(filenames),
@@ -306,144 +629,230 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	var s strings.Builder
+	var content strings.Builder
+	termWidth := getTerminalWidth()
+	contentWidth := termWidth - (m.config.UI.PaddingX * 2)
 
 	switch m.state {
 	case "checking":
-		s.WriteString("🔍 Checking files and directories...\n\n")
-		s.WriteString(m.progress.View())
+		if m.config.UI.Progress.ShowEmoji {
+			content.WriteString("🔍 ")
+		}
+		content.WriteString("Checking files and directories...\n\n")
+		content.WriteString(m.styles.Progress.Render(m.progress.View()))
 
 	case "confirming":
-		s.WriteString(questionStyle.Render("Are you sure you want to delete the following items?"))
-		s.WriteString("\n\n")
+		content.WriteString(m.styles.Question.Render("Are you sure you want to delete the following items?"))
+		content.WriteString("\n")
 
 		validCount := 0
 		invalidCount := 0
 		totalFileCount := 0
 
+		listContent := strings.Builder{}
 		for _, info := range m.fileInfos {
 			if info.Exists {
 				validCount++
 				if info.IsDirectory {
-					s.WriteString(fmt.Sprintf("📁 %s", deleterName.Render(info.Path)))
+					if m.config.UI.Progress.ShowEmoji {
+						listContent.WriteString("📁 ")
+					} else {
+						listContent.WriteString("DIR ")
+					}
+					listContent.WriteString(m.styles.Filename.Render(info.Path))
 					if info.FileCount > 0 {
-						s.WriteString(fmt.Sprintf(" (%d items)", info.FileCount))
+						listContent.WriteString(m.styles.Info.Render(fmt.Sprintf(" (%d items)", info.FileCount)))
 						totalFileCount += info.FileCount
 					} else {
-						s.WriteString(" (empty)")
+						listContent.WriteString(m.styles.Info.Render(" (empty)"))
 					}
 				} else {
-					s.WriteString(fmt.Sprintf("📄 %s", deleterName.Render(info.Path)))
+					if m.config.UI.Progress.ShowEmoji {
+						listContent.WriteString("📄 ")
+					} else {
+						listContent.WriteString("FILE ")
+					}
+					listContent.WriteString(m.styles.Filename.Render(info.Path))
 					totalFileCount++
 				}
-				s.WriteString("\n")
+				listContent.WriteString("\n")
 			} else {
 				invalidCount++
-				s.WriteString(fmt.Sprintf("❌ %s", warningStyle.Render(info.Path)))
-				s.WriteString(" (does not exist)\n")
+				if m.config.UI.Progress.ShowEmoji {
+					listContent.WriteString("❌ ")
+				} else {
+					listContent.WriteString("ERR ")
+				}
+				listContent.WriteString(m.styles.StatusBad.Render(info.Path))
+				listContent.WriteString(m.styles.Warning.Render(" (does not exist)"))
+				listContent.WriteString("\n")
 			}
 		}
 
+		// Use the new helper function to render the list with proper background
+		content.WriteString(renderList(listContent.String(), m.styles.List, contentWidth))
+
 		if invalidCount > 0 {
-			s.WriteString(fmt.Sprintf("\n%s %d file(s) will be skipped (do not exist)\n",
-				warningStyle.Render("Warning:"), invalidCount))
+			warningText := fmt.Sprintf("⚠ Warning: %d file(s) will be skipped", invalidCount)
+			paddedWarning := padToWidth(warningText, contentWidth)
+			content.WriteString(m.styles.Warning.Render(paddedWarning))
+			content.WriteString("\n")
 		}
 
 		if validCount > 0 {
-			s.WriteString(fmt.Sprintf("\nTotal items to delete: %d\n", validCount))
+			infoText := fmt.Sprintf("Total items to delete: %d", validCount)
 			if totalFileCount > validCount {
-				s.WriteString(fmt.Sprintf("Total files/subdirectories affected: %d\n", totalFileCount))
+				infoText += fmt.Sprintf(" | Files affected: %d", totalFileCount)
 			}
-			s.WriteString(fmt.Sprintf("Content will be moved to cache and can be recovered for %d days.\n\n", m.config.Cache.Days))
-			s.WriteString(helpStyle.Render("Press 'y' to confirm, 'n' to cancel, or 'q' to quit"))
+			infoText += fmt.Sprintf(" | Recoverable for %d days", m.config.Cache.Days)
+
+			paddedInfo := padToWidth(infoText, contentWidth)
+			content.WriteString(m.styles.Info.Render(paddedInfo))
+			content.WriteString("\n\n")
+
+			helpText := padToWidth("Press 'y' to confirm, 'n' to cancel, or 'q' to quit", contentWidth)
+			content.WriteString(m.styles.Help.Render(helpText))
 		} else {
-			s.WriteString("\n")
-			s.WriteString(helpStyle.Render("Press 'n' to cancel or 'q' to quit"))
+			content.WriteString("\n")
+			helpText := padToWidth("Press 'n' to cancel or 'q' to quit", contentWidth)
+			content.WriteString(m.styles.Help.Render(helpText))
 		}
 
 	case "moving":
 		if m.currentIndex < len(m.fileInfos) {
 			currentFile := m.fileInfos[m.currentIndex]
+			emoji := ""
+			fileType := "file"
 			if currentFile.IsDirectory {
-				s.WriteString(normalStyle.Render(fmt.Sprintf("📦 Moving directory '%s' to safe cache... (%d/%d)",
-					currentFile.Path, m.processedFiles+1, m.totalFiles)))
+				fileType = "directory"
+				if m.config.UI.Progress.ShowEmoji {
+					emoji = "📦 "
+				}
 			} else {
-				s.WriteString(normalStyle.Render(fmt.Sprintf("📦 Moving file '%s' to safe cache... (%d/%d)",
-					currentFile.Path, m.processedFiles+1, m.totalFiles)))
+				if m.config.UI.Progress.ShowEmoji {
+					emoji = "📦 "
+				}
 			}
+
+			statusText := fmt.Sprintf("%sMoving %s '%s' to safe cache... (%d/%d)",
+				emoji, fileType, currentFile.Path, m.processedFiles+1, m.totalFiles)
+			paddedStatus := padToWidth(statusText, contentWidth)
+			content.WriteString(m.styles.Info.Render(paddedStatus))
 		} else {
-			s.WriteString(normalStyle.Render("📦 Moving files to safe cache..."))
+			statusText := "Moving files to safe cache..."
+			if m.config.UI.Progress.ShowEmoji {
+				statusText = "📦 " + statusText
+			}
+			paddedStatus := padToWidth(statusText, contentWidth)
+			content.WriteString(m.styles.Info.Render(paddedStatus))
 		}
-		s.WriteString("\n\n")
-		s.WriteString(m.progress.View())
+		content.WriteString("\n\n")
+		content.WriteString(m.styles.Progress.Render(m.progress.View()))
 
 	case "cleanup":
-		s.WriteString("🧹 Cleaning up old cached files...\n\n")
-		s.WriteString(m.progress.View())
+		statusText := "Cleaning up old cached files..."
+		if m.config.UI.Progress.ShowEmoji {
+			statusText = "🧹 " + statusText
+		}
+		paddedStatus := padToWidth(statusText, contentWidth)
+		content.WriteString(m.styles.Info.Render(paddedStatus))
+		content.WriteString("\n\n")
+		content.WriteString(m.styles.Progress.Render(m.progress.View()))
 
 	case "clearing":
-		s.WriteString("🗑️  Clearing all cached files...\n\n")
-		s.WriteString(m.progress.View())
+		statusText := "Clearing all cached files..."
+		if m.config.UI.Progress.ShowEmoji {
+			statusText = "🗑️ " + statusText
+		}
+		paddedStatus := padToWidth(statusText, contentWidth)
+		content.WriteString(m.styles.Info.Render(paddedStatus))
+		content.WriteString("\n\n")
+		content.WriteString(m.styles.Progress.Render(m.progress.View()))
 
 	case "done":
+		successMsg := ""
 		if m.clearAll {
-			s.WriteString(successStyle.Render("✅ All cached files cleared!"))
+			if m.config.UI.Progress.ShowEmoji {
+				successMsg = "✅ All cached files cleared!"
+			} else {
+				successMsg = "SUCCESS: All cached files cleared!"
+			}
 		} else {
-			s.WriteString(successStyle.Render(fmt.Sprintf("✅ Successfully processed %d item(s)!", len(m.processedItems))))
+			emoji := ""
+			if m.config.UI.Progress.ShowEmoji {
+				emoji = "✅ "
+			}
+			successMsg = fmt.Sprintf("%sSuccessfully processed %d item(s)!", emoji, len(m.processedItems))
 		}
-		s.WriteString("\n\n")
+
+		content.WriteString(m.styles.Success.Render(successMsg))
+		content.WriteString("\n\n")
 
 		if !m.clearAll && len(m.processedItems) > 0 {
+			detailsBuilder := strings.Builder{}
 			for i, item := range m.processedItems {
-				if i < 5 { // Show details for first 5 items to avoid cluttering
-					s.WriteString(fmt.Sprintf("• %s -> %s\n", item.OriginalPath, filepath.Base(item.CachePath)))
+				if i < 5 {
+					detailsBuilder.WriteString(fmt.Sprintf("• %s → %s\n",
+						m.styles.Filename.Render(item.OriginalPath),
+						filepath.Base(item.CachePath)))
 				}
 			}
 
 			if len(m.processedItems) > 5 {
-				s.WriteString(fmt.Sprintf("... and %d more item(s)\n", len(m.processedItems)-5))
+				detailsBuilder.WriteString(m.styles.Info.Render(fmt.Sprintf("... and %d more item(s)", len(m.processedItems)-5)))
+				detailsBuilder.WriteString("\n")
 			}
+
+			// Use the helper function for the details list too
+			content.WriteString(renderList(detailsBuilder.String(), m.styles.List, contentWidth))
 
 			if len(m.processedItems) > 0 {
 				deleteAfter := m.processedItems[0].DeleteDate.Add(time.Duration(m.config.Cache.Days) * 24 * time.Hour)
-				s.WriteString(fmt.Sprintf("\nWill be permanently deleted after: %s\n\n", deleteAfter.Format("2006-01-02 15:04:05")))
+				deleteAfterText := fmt.Sprintf("Will be permanently deleted after: %s", deleteAfter.Format("2006-01-02 15:04:05"))
+				paddedDeleteAfter := padToWidth(deleteAfterText, contentWidth)
+				content.WriteString(m.styles.Info.Render(paddedDeleteAfter))
+				content.WriteString("\n\n")
 			}
 		}
 
-		s.WriteString(m.progress.View())
-		s.WriteString("\n\n")
-		s.WriteString(helpStyle.Render("Press Enter or 'q' to exit"))
+		content.WriteString(m.styles.Progress.Render(m.progress.View()))
+		content.WriteString("\n\n")
+		helpText := padToWidth("Press Enter or 'q' to exit", contentWidth)
+		content.WriteString(m.styles.Help.Render(helpText))
 
 	case "error":
-		s.WriteString(errorStyle.Render("❌ Error"))
-		s.WriteString("\n\n")
-		s.WriteString(m.errorMsg)
-		s.WriteString("\n\n")
-		s.WriteString(helpStyle.Render("Press Enter or 'q' to exit"))
+		errorMsg := ""
+		if m.config.UI.Progress.ShowEmoji {
+			errorMsg = "❌ Error"
+		} else {
+			errorMsg = "ERROR"
+		}
+
+		content.WriteString(m.styles.Error.Render(errorMsg))
+		content.WriteString("\n\n")
+
+		errorText := padToWidth(m.errorMsg, contentWidth)
+		content.WriteString(m.styles.Info.Render(errorText))
+		content.WriteString("\n\n")
+
+		helpText := padToWidth("Press Enter or 'q' to exit", contentWidth)
+		content.WriteString(m.styles.Help.Render(helpText))
 	}
 
-	return s.String()
+	return m.styles.Root.Render(content.String())
 }
 
-// Messages
-type filesExistMsg struct {
-	fileInfos []FileInfo
+// Helper function to pad text to a specific width
+func padToWidth(text string, width int) string {
+	textWidth := lipgloss.Width(text)
+	if textWidth < width {
+		return text + strings.Repeat(" ", width-textWidth)
+	}
+	return text
 }
 
-type fileMoveMsg struct {
-	item DeletedItem
-	err  error
-}
 
-type cleanupMsg struct{}
-
-type clearMsg struct {
-	err error
-}
-
-type errorMsg string
-
-// Commands
+// Commands (unchanged from previous version)
 func checkFilesExist(filenames []string) tea.Cmd {
 	return func() tea.Msg {
 		fileInfos := make([]FileInfo, len(filenames))
@@ -849,6 +1258,7 @@ func showUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  saferm <file|directory> [file2] [dir2] ...    Remove multiple files or directories safely")
 	fmt.Println("  saferm --clear                                Clear all cached files immediately")
+	fmt.Println("  saferm --themes                               List available themes")
 	fmt.Println("  saferm -h, --help                             Show this help message")
 	fmt.Println("")
 	fmt.Println("Examples:")
@@ -860,6 +1270,26 @@ func showUsage() {
 	fmt.Println("  Config file: ~/.config/saferm/saferm.toml")
 	fmt.Println("  Default cache location: ~/.cache/saferm")
 	fmt.Println("  Default retention: 10 days")
+	fmt.Println("  Available themes: default, dark, light, cyberpunk, minimal")
+}
+
+
+func showThemes() {
+	themes := getDefaultThemes()
+	fmt.Println("Available SafeRM Themes:")
+	fmt.Println("=" + strings.Repeat("=", 40))
+
+	for name, theme := range themes {
+		fmt.Printf("\nTheme: %s\n", strings.ToUpper(name))
+		fmt.Printf("  Primary:    %s\n", theme.UI.Colors.Primary)
+		fmt.Printf("  Success:    %s\n", theme.UI.Colors.Success)
+		fmt.Printf("  Warning:    %s\n", theme.UI.Colors.Warning)
+		fmt.Printf("  Error:      %s\n", theme.UI.Colors.Error)
+		fmt.Printf("  Progress:   %s\n", theme.UI.Progress.Style)
+	}
+
+	fmt.Println("\nTo use a theme, set 'theme = \"name\"' in your saferm.toml config file.")
+	fmt.Println("You can also override individual colors in the [ui.colors] section.")
 }
 
 func main() {
@@ -876,6 +1306,12 @@ func main() {
 		return
 	}
 
+	// Handle themes flag
+	if arg == "--themes" {
+		showThemes()
+		return
+	}
+
 	// Handle clear flag
 	if arg == "--clear" {
 		model, err := initialModel([]string{}, true)
@@ -883,7 +1319,6 @@ func main() {
 			fmt.Printf("Error loading configuration: %v\n", err)
 			os.Exit(1)
 		}
-
 		p := tea.NewProgram(model)
 		if _, err := p.Run(); err != nil {
 			log.Fatal(err)
