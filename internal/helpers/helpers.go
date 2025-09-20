@@ -9,12 +9,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 	"io"
+	// "log"
 	"os"
+	// "os/exec"
 	"path/filepath"
+	// "runtime"
 	"strconv"
 	"strings"
 	"time"
-
 	"vanish/internal/types"
 )
 
@@ -41,6 +43,35 @@ func FormatBytes(bytes int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
+
+// SendNotification sends a desktop notification based on the provided title and message.
+// It only sends notifications if the corresponding flags are enabled in the config.
+// It's tested on only Linux tho it should also work on macOS, and Windows platforms.
+// func SendNotification(title, message string, config types.Config) {
+// 	if !config.Notifications.NotifySuccess && !config.Notifications.NotifyErrors {
+// 		return
+// 	}
+
+// 	if config.Notifications.DesktopEnabled {
+// 		// Run the notification in a separate goroutine to avoid blocking the UI.
+// 		go func() {
+// 			var err error
+
+// 			switch runtime.GOOS {
+// 			case "linux":
+// 				err = exec.Command("notify-send", title, message).Run()
+// 			case "darwin":
+// 				script := fmt.Sprintf(`display notification "%s" with title "%s"`, message, title)
+// 				err = exec.Command("osascript", "-e", script).Run()
+// 			}
+
+// 			if err != nil {
+// 				log.Printf("failed to send notification: %v", err)
+// 			}
+// 		}()
+// 	}
+// }
+
 
 // SetUpProgress defines progress bar style
 func SetUpProgress(config types.Config) progress.Model {
@@ -84,6 +115,9 @@ func CreateThemeStyles(config types.Config) types.ThemeStyles {
 			Foreground(lipgloss.Color(colors.Highlight)).
 			Bold(true).
 			Underline(true),
+		IconStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors.Highlight)).
+			Bold(true),
 		Success: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colors.Success)).
 			Bold(true).

@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"vanish/internal/helpers"
 	"vanish/internal/types"
+	"vanish/internal/config"
 )
 
 // Model defines the state and data used by the TUI.
@@ -34,6 +35,35 @@ type Model struct {
 	NoConfirm      bool
 	Operation      string // "delete", "restore", "clear", "purge"
 	RestoreItems   []types.DeletedItem
+}
+
+
+func InitialModel(filenames []string, operation string, noConfirm bool) (*Model, error) {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	prog := helpers.SetUpProgress(cfg)
+	styles := helpers.CreateThemeStyles(cfg)
+
+	// Check if no_confirm is set in config and not overridden by flag
+	if cfg.Cache.NoConfirm && !noConfirm {
+		noConfirm = true
+	}
+
+	return &Model{
+		Filenames:      filenames,
+		FileInfos:      make([]types.FileInfo, len(filenames)),
+		State:          "checking",
+		Progress:       prog,
+		Config:         cfg,
+		Styles:         styles,
+		Operation:      operation,
+		ProcessedItems: make([]types.DeletedItem, 0),
+		TotalFiles:     len(filenames),
+		NoConfirm:      noConfirm,
+	}, nil
 }
 
 // Init initializes the TUI model and triggers the initial
@@ -360,6 +390,9 @@ func restoreFromCache(item types.DeletedItem, config types.Config) tea.Cmd {
 		if config.Logging.Enabled {
 			helpers.LogOperation("RESTORE", item, config)
 		}
+		// if config.Notifications.NotifySuccess {
+		// 	helpers.SendNotification("Vanish", fmt.Sprintf("Restored %s", filepath.Base(item.OriginalPath)), config)
+		// }
 
 		return types.RestoreMsg{Item: item, Err: nil}
 	}
@@ -367,6 +400,7 @@ func restoreFromCache(item types.DeletedItem, config types.Config) tea.Cmd {
 
 func moveFileToCache(filename string, config types.Config) tea.Cmd {
 	return func() tea.Msg {
+
 		// Ensure cache directory exists
 		cacheDir := helpers.ExpandPath(config.Cache.Directory)
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
@@ -396,20 +430,22 @@ func moveFileToCache(filename string, config types.Config) tea.Cmd {
 		isDir := stat.IsDir()
 		fileCount := 0
 		size := stat.Size()
-
-		// Move file or directory
+		// Handle directories
 		if isDir {
 			fileCount, _ = helpers.CountFilesInDirectory(filename)
 			size, _ = helpers.GetDirectorySize(filename)
+
 			if err := helpers.MoveDirectory(filename, cachePath); err != nil {
 				return types.FileMoveMsg{Err: err}
 			}
 		} else {
+			// Handle files
 			if err := helpers.MoveFile(filename, cachePath); err != nil {
 				return types.FileMoveMsg{Err: err}
 			}
 		}
-		// Create deleted item
+
+		// Create enhanced deleted item
 		item := types.DeletedItem{
 			ID:           id,
 			OriginalPath: absPath,
@@ -429,6 +465,11 @@ func moveFileToCache(filename string, config types.Config) tea.Cmd {
 		if config.Logging.Enabled {
 			helpers.LogOperation("DELETE", item, config)
 		}
+
+		// Send notification if enabled
+		// if config.Notifications.NotifySuccess {
+		// 	helpers.SendNotification("Vanish", fmt.Sprintf("Moved %s to cache", filepath.Base(filename)), config)
+		// }
 
 		return types.FileMoveMsg{Item: item, Err: nil}
 	}

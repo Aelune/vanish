@@ -13,11 +13,17 @@ type Config struct {
 	Cache struct {
 		Directory string `toml:"directory"`
 		Days      int    `toml:"days"`
+		NoConfirm bool   `toml:"no_confirm"`
 	} `toml:"cache"`
 	Logging struct {
 		Enabled   bool   `toml:"enabled"`
 		Directory string `toml:"directory"`
 	} `toml:"logging"`
+	// Notifications struct {
+	// 	DesktopEnabled bool `toml:"desktop_enabled"`
+	// 	NotifySuccess  bool `toml:"notify_success"`
+	// 	NotifyErrors   bool `toml:"notify_errors"`
+	// } `toml:"notifications"`
 	UI struct {
 		Theme  string `toml:"theme"` // "default", "dark", "light", "cyberpunk", "minimal"
 		Colors struct {
@@ -36,7 +42,6 @@ type Config struct {
 			ShowEmoji bool   `toml:"show_emoji"`
 			Animation bool   `toml:"animation"`
 		} `toml:"progress"`
-		NoConfirm bool `toml:"no_confirm"`
 	} `toml:"ui"`
 }
 
@@ -68,10 +73,12 @@ type FileInfo struct {
 // ThemeStyles holds all the styled components used in the TUI
 type ThemeStyles struct {
 	Root       lipgloss.Style
+	Base       lipgloss.Style
 	Title      lipgloss.Style
 	Header     lipgloss.Style
 	Question   lipgloss.Style
 	Filename   lipgloss.Style
+	IconStyle  lipgloss.Style
 	Success    lipgloss.Style
 	Error      lipgloss.Style
 	Warning    lipgloss.Style

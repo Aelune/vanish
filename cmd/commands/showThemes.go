@@ -10,9 +10,6 @@ import (
 	"vanish/internal/types"
 )
 
-// "os"
-// "golang.org/x/term"
-
 // MainThemeDisplayer implements the ThemeDisplayer interface,
 // providing logic to retrieve and render theme data.
 type MainThemeDisplayer struct{}

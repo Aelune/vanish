@@ -8,38 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"vanish/cmd/commands"
 	"vanish/internal/config"
-	"vanish/internal/helpers"
 	"vanish/internal/tui"
-	"vanish/internal/types"
 )
 
-func initialModel(filenames []string, operation string, noConfirm bool) (*tui.Model, error) {
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	prog := helpers.SetUpProgress(cfg)
-	styles := helpers.CreateThemeStyles(cfg)
-
-	// Check if no_confirm is set in config and not overridden by flag
-	if cfg.UI.NoConfirm && !noConfirm {
-		noConfirm = true
-	}
-
-	return &tui.Model{
-		Filenames:      filenames,
-		FileInfos:      make([]types.FileInfo, len(filenames)),
-		State:          "checking",
-		Progress:       prog,
-		Config:         cfg,
-		Styles:         styles,
-		Operation:      operation,
-		ProcessedItems: make([]types.DeletedItem, 0),
-		TotalFiles:     len(filenames),
-		NoConfirm:      noConfirm,
-	}, nil
-}
 
 func main() {
 	cfg, err := config.LoadConfig()
@@ -64,7 +35,7 @@ func main() {
 	}
 
 	// Initialize TUI
-	m, err := initialModel(parsed.Filenames, parsed.Operation, parsed.NoConfirm)
+	m, err := tui.InitialModel(parsed.Filenames, parsed.Operation, parsed.NoConfirm)
 	if err != nil {
 		log.Fatalf("Error initializing: %v", err)
 	}

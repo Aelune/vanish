@@ -1,14 +1,11 @@
 package tui
 
 import (
-	// "github.com/charmbracelet/bubbles/progress"
-	// "github.com/charmbracelet/bubbletea"
 	"fmt"
 	"github.com/charmbracelet/lipgloss"
 	"path/filepath"
 	"strings"
 	"time"
-	// "os"
 
 	"vanish/internal/types"
 )
@@ -19,16 +16,30 @@ type ErrorMsg string
 func (m *Model) getFileIcon(isDirectory bool) string {
 	if m.Config.UI.Progress.ShowEmoji {
 		if isDirectory {
-			return "📁 "
+			return m.Styles.IconStyle.Render("  ")
 		}
-		return "📄 "
+		return m.Styles.IconStyle.Render("  ")
 	}
 
 	if isDirectory {
-		return "DIR "
+		return m.Styles.IconStyle.Render("DIR ")
 	}
-	return "FILE "
+	return m.Styles.IconStyle.Render("FILE ")
 }
+
+// func (m *Model) getFileIcon(isDirectory bool) string {
+//     if m.Config.UI.Progress.ShowEmoji {
+//         if isDirectory {
+//             return m.Styles.Filename.Render("  ")
+//         }
+//         // (m.Styles.StatusBad.Render(info.Path))
+//         return "  "
+//     }
+//     if isDirectory {
+//         return "DIR "
+//     }
+//     return "FILE "
+// }
 
 func (m *Model) getFileTypeString(isDirectory bool) string {
 	if isDirectory {
@@ -89,7 +100,6 @@ func (m *Model) appendValidFileInfo(listContent *strings.Builder, info types.Fil
 	icon := m.getFileIcon(info.IsDirectory)
 	listContent.WriteString(icon)
 	listContent.WriteString(m.Styles.Filename.Render(info.Path))
-
 	if info.IsDirectory {
 		inlineInfoStyle := m.Styles.Info.Border(lipgloss.Border{}).Padding(0)
 		if info.FileCount > 0 {
@@ -98,21 +108,48 @@ func (m *Model) appendValidFileInfo(listContent *strings.Builder, info types.Fil
 			listContent.WriteString(inlineInfoStyle.Render(" (empty)"))
 		}
 	}
-
 	listContent.WriteString("\n")
 }
 
 func (m *Model) appendInvalidFileInfo(listContent *strings.Builder, info types.FileInfo) {
-	icon := "ERR "
+	// Use consistent spacing/width with valid files
+	icon := "ERR:"
 	if m.Config.UI.Progress.ShowEmoji {
-		icon = "❌ "
+		icon = "❌"
 	}
 
-	listContent.WriteString(icon)
+	// Add proper spacing to align with valid file icons
+	listContent.WriteString(fmt.Sprintf("%-4s", icon))
 	listContent.WriteString(m.Styles.StatusBad.Render(info.Path))
 	listContent.WriteString(m.Styles.Warning.Render(" (does not exist)"))
+	listContent.WriteString("\n")
 }
 
+// func (m *Model) renderFileList(validFiles, invalidFiles []types.FileInfo) string {
+// 	var content strings.Builder
+
+// 	content.WriteString("Are you sure you want to delete the following items?\n\n")
+
+// 	// Render valid files first for consistent layout
+// 	for i, info := range validFiles {
+// 		m.appendValidFileInfo(&content, info, &i)
+// 	}
+
+// 	// Then render invalid files with consistent formatting
+// 	for _, info := range invalidFiles {
+// 		m.appendInvalidFileInfo(&content, info)
+// 	}
+
+// 	// Add warning if there are invalid files
+// 	if len(invalidFiles) > 0 {
+// 		m.renderInvalidFilesWarning(&content, len(invalidFiles))
+// 	}
+
+// 	// Add summary
+// 	content.WriteString(fmt.Sprintf("\n Total items to delete: %d | Recoverable for 10 days", len(validFiles)))
+
+//		return content.String()
+//	}
 func (m *Model) renderInvalidFilesWarning(content *strings.Builder, invalidCount int) {
 	content.WriteString("\n")
 	warningText := fmt.Sprintf("⚠ Warning: %d file(s) will be skipped", invalidCount)
