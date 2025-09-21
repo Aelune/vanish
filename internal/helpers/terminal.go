@@ -1,9 +1,10 @@
 package helpers
 
-import(
+import (
 	"os"
 	"strings"
 )
+
 // IsColorTerminal a helper function to detect color terminal support
 func IsColorTerminal() bool {
 	term := os.Getenv("TERM")

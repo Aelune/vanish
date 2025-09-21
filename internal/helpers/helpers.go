@@ -72,7 +72,6 @@ func FormatBytes(bytes int64) string {
 // 	}
 // }
 
-
 // SetUpProgress defines progress bar style
 func SetUpProgress(config types.Config) progress.Model {
 	prog := progress.New()
