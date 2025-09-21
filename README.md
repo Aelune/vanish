@@ -1,10 +1,11 @@
 # Vanish (vx) 🗑️
 
-[![Release](https://img.shields.io/github/v/release/Aelune/vanish?style=flat-square)](https://github.com/Aelune/vanish/releases)
+<!-- [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/Aelune/vanish?style=flat-square)](https://github.com/Aelune/vanish/tags) -->
+[![Release](https://img.shields.io/github/v/release/Aelune/vanish?include_prereleases&style=flat-square)](https://github.com/Aelune/vanish/releases/tag/v0.9.0)
 [![License](https://img.shields.io/github/license/Aelune/vanish?style=flat-square)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Aelune/vanish?style=flat-square)](https://goreportcard.com/report/github.com/Aelune/vanish)
 
-> A modern, safe file deletion tool with recovery capabilities and beautiful TUI interface.
+
+### A modern, safe file deletion tool with recovery capabilities and beautiful TUI interface.
 
 Vanish provides a secure alternative to permanent file deletion by moving files to a managed cache with full recovery options. Never lose important files again with intelligent backup, pattern-based restoration, and comprehensive file management.
 
@@ -22,23 +23,26 @@ Vanish provides a secure alternative to permanent file deletion by moving files 
 <!-- - 🐚 **Shell Completion**: Full completion support for Bash, Zsh, Fish, PowerShell -->
 
 ## 🚀 Installation
-
-### Download Binary
+#### Using `curl`
 ```bash
-# Linux/macOS
-curl -L https://github.com/Aelune/vanish/releases/latest/download/vx-linux-amd64 -o vx
-chmod +x vx
-sudo mv vx /usr/local/bin/
-
-# Or use install script
-curl -fsSL https://raw.githubusercontent.com/Aelune/vanish/main/install.sh | bash
+curl -LsSf https://raw.githubusercontent.com/Aelune/vanish/main/install.sh | sh
+```
+### Using `wget`
+```bash
+wget -qO- https://raw.githubusercontent.com/Aelune/vanish/main/install.sh | sh
+```
+### Requesting a specific version tag (`v0.9.0`)
+```bash
+curl -LsSf https://raw.githubusercontent.com/Aelune/vanish/<tag>/install.sh | sh
+```
+```bash
+wget -qO- https://raw.githubusercontent.com/Aelune/vanish/<tag>/install.sh | sh
 ```
 
 ### Build from Source
 ```bash
 git clone https://github.com/Aelune/vanish.git
-cd vanish
-go build -o vx .
+cd vanish && make build
 sudo mv vx /usr/local/bin/
 ```
 
@@ -72,10 +76,7 @@ vx --info "important-file"
 
 # Clear all cached files
 vx --clear
-```
 
-### Advanced Operations
-```bash
 # Purge files older than 30 days
 vx --purge 30
 
@@ -114,7 +115,7 @@ export VX_THEME=cyberpunk
 
 ## ⚙️ Configuration
 
-Vanish uses a TOML based configuration for easy understanding look at [Config Documentation](https://dwukn.vercel.app/)
+Vanish uses a TOML based configuration for easy understanding look at [Config Documentation](https://github.com/Aelune/vanish/blob/main/docs/configuration/default-config.md)
 
 <!-- ## 🔧 Shell Completion
 
@@ -203,7 +204,7 @@ We welcome contributions!
 
 - **Bug Reports**: [GitHub Issues](https://github.com/Aelune/vanish/issues)
 - **Feature Requests**: [GitHub Discussions](https://github.com/Aelune/vanish/discussions)
-- **Security Issues**: Please email security@yourdomain.com
+<!-- - **Security Issues**: Please email Ailune@proton.me -->
 
 ## 📄 License
 
@@ -213,7 +214,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) TUI framework
 - Styled with [Lip Gloss](https://github.com/charmbracelet/lipgloss)
-- Inspired by modern CLI tools and safety-first design principles
 
 ---
 
@@ -222,8 +222,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **[Homepage](https://dwukn.vercel.app/)** •
 **[Documentation](https://dwukn.vercel.app/)** •
 **[Releases](https://github.com/Aelune/vanish/releases)** •
-<!-- **[Discussions](https://github.com/Aelune/vanish/discussions)** -->
+**[Discussions](https://github.com/Aelune/vanish/discussions)**
 
 Made with ❤️ by [Aelune](https://github.com/Aelune)
-
 </div>
