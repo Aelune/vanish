@@ -1,5 +1,5 @@
 ```toml
-`[cache]
+[cache]
 # ============================================================================
 # ⚠️ WARNING: Do not modify the cache directory if it already have files stored!
 #
