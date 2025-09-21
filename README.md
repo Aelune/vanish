@@ -108,9 +108,6 @@ Vanish includes 8 beautiful built-in themes:
 ```bash
 # Preview all themes interactively
 vx --themes
-
-# Set theme via config or environment
-export VX_THEME=cyberpunk
 ```
 
 ## ⚙️ Configuration
@@ -196,6 +193,7 @@ We welcome contributions!
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/Notification`)
+3. Check for linting errors by running `make lint`
 3. Commit your changes (`git commit -m 'Added Notification Feature'`)
 4. Push to the branch (`git push origin feature/Notification`)
 5. Open a Pull Request
@@ -204,7 +202,6 @@ We welcome contributions!
 
 - **Bug Reports**: [GitHub Issues](https://github.com/Aelune/vanish/issues)
 - **Feature Requests**: [GitHub Discussions](https://github.com/Aelune/vanish/discussions)
-<!-- - **Security Issues**: Please email Ailune@proton.me -->
 
 ## 📄 License
 
