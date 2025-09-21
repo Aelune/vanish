@@ -11,7 +11,6 @@ import (
 	"vanish/internal/tui"
 )
 
-
 func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {

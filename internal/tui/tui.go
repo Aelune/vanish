@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"vanish/internal/config"
 	"vanish/internal/helpers"
 	"vanish/internal/types"
-	"vanish/internal/config"
 )
 
 // Model defines the state and data used by the TUI.
@@ -37,7 +37,7 @@ type Model struct {
 	RestoreItems   []types.DeletedItem
 }
 
-
+// InitialModel initializes and returns a new Model with configuration, progress, styles, and file info prepared.
 func InitialModel(filenames []string, operation string, noConfirm bool) (*Model, error) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
