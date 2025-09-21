@@ -30,17 +30,17 @@ func ParseArgs(args []string, cfg types.Config) ParsedArgs {
 		case "-h", "--help":
 			ShowUsageFallback(cfg)
 			os.Exit(0)
-		case "-t","--themes":
+		case "-t", "--themes":
 			displayer := &MainThemeDisplayer{}
 			ShowThemesWithTuiPreview(displayer)
 			os.Exit(0)
-		case "-p","--path":
+		case "-p", "--path":
 			fmt.Println(helpers.ExpandPath(cfg.Cache.Directory))
 			os.Exit(0)
-		case "-cp","--config-path":
+		case "-cp", "--config-path":
 			fmt.Println(helpers.GetConfigPath())
 			os.Exit(0)
-		case "-l","--list":
+		case "-l", "--list":
 			if err := ShowList(cfg); err != nil {
 				log.Fatalf("Error: %v", err)
 			}
@@ -48,17 +48,17 @@ func ParseArgs(args []string, cfg types.Config) ParsedArgs {
 		case "-v", "--version":
 			ShowVersion()
 			os.Exit(0)
-		case "-s","--stats":
+		case "-s", "--stats":
 			if err := ShowStats(cfg); err != nil {
 				log.Fatalf("Error: %v", err)
 			}
 			os.Exit(0)
-		case "-c","--clear":
+		case "-c", "--clear":
 			operation = "clear"
 			filenames = []string{""}
-		case "-f","--noconfirm":
+		case "-f", "--noconfirm":
 			noConfirm = true
-		case "-r","--restore":
+		case "-r", "--restore":
 			operation = "restore"
 			if i+1 < len(args) {
 				filenames = args[i+1:]
@@ -66,7 +66,7 @@ func ParseArgs(args []string, cfg types.Config) ParsedArgs {
 			} else {
 				log.Fatal("Error: --restore requires at least one pattern")
 			}
-		case "-i","--info":
+		case "-i", "--info":
 			if i+1 < len(args) {
 				if err := ShowInfo(args[i+1], cfg); err != nil {
 					log.Fatalf("Error: %v", err)
@@ -75,7 +75,7 @@ func ParseArgs(args []string, cfg types.Config) ParsedArgs {
 				log.Fatal("Error: --info requires a pattern")
 			}
 			os.Exit(0)
-		case "-pr","--purge":
+		case "-pr", "--purge":
 			if i+1 < len(args) {
 				operation = "purge"
 				filenames = []string{args[i+1]}
@@ -113,22 +113,22 @@ func ParseArgs(args []string, cfg types.Config) ParsedArgs {
 	}
 }
 
-		// FUTURE Case
-		// case "-ex","--export-config":
-		// 	var exportPath string
-		// if len(args) > 1 {
-		// 	exportPath = args[1]
-		// }
-		// if err := config.ExportConfig(exportPath); err != nil {
-		// 	fmt.Printf("Export failed: %v\n", err)
-		// 	os.Exit(1)
-		// }
-		// case "-ic","import-config":
-		// 	if len(args) < 2 {
-		// 		fmt.Println("Error --import-config needs a file path")
-		// 		os.Exit(1)
-		// 	}
-		// 	if err := config.ImportConfig(args[1]); err != nil {
-		// 		fmt.Printf("Import failed: %v\n", err)
-		// 		os.Exit(1)
-		// 	}
+// FUTURE Case
+// case "-ex","--export-config":
+// 	var exportPath string
+// if len(args) > 1 {
+// 	exportPath = args[1]
+// }
+// if err := config.ExportConfig(exportPath); err != nil {
+// 	fmt.Printf("Export failed: %v\n", err)
+// 	os.Exit(1)
+// }
+// case "-ic","import-config":
+// 	if len(args) < 2 {
+// 		fmt.Println("Error --import-config needs a file path")
+// 		os.Exit(1)
+// 	}
+// 	if err := config.ImportConfig(args[1]); err != nil {
+// 		fmt.Printf("Import failed: %v\n", err)
+// 		os.Exit(1)
+// 	}

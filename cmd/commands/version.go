@@ -8,7 +8,7 @@ import (
 const (
 	VERSION = "0.9.0"
 	// BUILD_DATE = "2024-01-15"
-	NAME  = "ares-cinnamon"
+	NAME   = "ares-cinnamon"
 	AUTHOR = "Aelune"
 )
 
@@ -38,9 +38,7 @@ func ShowVersion() {
 	// }
 }
 
-
 // Possible future Names, added so that i wont forget proper name
-
 
 // 0.1   zeus-honey ,
 // v0.2: thor-caramel ,

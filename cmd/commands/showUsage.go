@@ -2,10 +2,10 @@ package command
 
 import (
 	"fmt"
-	"vanish/internal/types"
 	"github.com/charmbracelet/lipgloss"
 	"strings"
 	"vanish/internal/helpers"
+	"vanish/internal/types"
 )
 
 // ShowUsageSmart that detects color support of terminal
