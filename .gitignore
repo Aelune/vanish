@@ -1,4 +1,6 @@
 test.sh
-TODO
 saferm
 currentFuncs
+compare/
+/build/bin/vx
+.idea/

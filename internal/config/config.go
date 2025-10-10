@@ -181,7 +181,7 @@ days = 10
 # Logging Configuration
 # ------------------------------
 [logging]
-# Enable or disable logging (true/false)
+# Enable or disable logging (true/false) 
 enabled = true
 
 # Directory for log files (relative to the cache directory above)

@@ -1,0 +1,26 @@
+--bugs--
+1. during recovery if file name already exits it goes in wierd stage
+2. marked file as expired still have a day before they auto deletes,
+    most like an error on how we are calculating old files
+
+
+-- Improvements --
+1. Notification / Logging Improvements
+
+    Add verbosity levels for logging (info, warning, error, debug).
+    Optional user notifications on restore or deletion, maybe via desktop notifications.
+
+2. Compression and Encryption
+
+    Compress deleted files to save disk space.
+    Encrypt stored files for privacy/security.
+
+3. Configurable Cleanup Hooks
+
+Allow users to run custom scripts/hooks before or after clearing cache or restoring files.
+
+4. Safety Features
+    Dry-run mode to simulate operations without actual changes.
+
+5. cmd/command/showList.go showStats.go, showInfo -> needs improvement by having a tui and
+                quality of life features

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"vanish/internal/config"
 	"vanish/internal/helpers"
@@ -335,10 +335,11 @@ func processNextItem(m *Model) tea.Cmd {
 	return moveFileToCache(m.FileInfos[m.CurrentIndex].Path, m.Config)
 }
 
+// restoreFromCache restores a deleted item from cache back to its original location
 func restoreFromCache(item types.DeletedItem, config types.Config) tea.Cmd {
 	return func() tea.Msg {
 		// Check if cache file exists
-		if _, err := os.Stat(item.CachePath); os.IsNotExist(err) {
+		if _, err := os.Lstat(item.CachePath); os.IsNotExist(err) {
 			return types.RestoreMsg{Err: fmt.Errorf("cached file not found: %s", item.CachePath)}
 		}
 
@@ -349,19 +350,25 @@ func restoreFromCache(item types.DeletedItem, config types.Config) tea.Cmd {
 		}
 
 		// Check if original path already exists
-		if _, err := os.Stat(item.OriginalPath); !os.IsNotExist(err) {
+		if _, err := os.Lstat(item.OriginalPath); !os.IsNotExist(err) {
 			return types.RestoreMsg{Err: fmt.Errorf("destination already exists: %s", item.OriginalPath)}
 		}
 
-		// Move file back
-		if item.IsDirectory {
-			if err := helpers.MoveDirectory(item.CachePath, item.OriginalPath); err != nil {
-				return types.RestoreMsg{Err: err}
-			}
+		// Restore based on item type
+		var err error
+		if item.IsSymlink {
+			// Restore symlink
+			err = helpers.RestoreSymlink(item.CachePath, item.OriginalPath)
+		} else if item.IsDirectory {
+			// Restore directory
+			err = helpers.MoveDirectory(item.CachePath, item.OriginalPath)
 		} else {
-			if err := helpers.MoveFile(item.CachePath, item.OriginalPath); err != nil {
-				return types.RestoreMsg{Err: err}
-			}
+			// Restore regular file
+			err = helpers.MoveFile(item.CachePath, item.OriginalPath)
+		}
+
+		if err != nil {
+			return types.RestoreMsg{Err: fmt.Errorf("failed to restore %s: %v", item.ItemType(), err)}
 		}
 
 		// Remove from index
@@ -369,19 +376,17 @@ func restoreFromCache(item types.DeletedItem, config types.Config) tea.Cmd {
 			// Log error but don't fail the restore
 			if config.Logging.Enabled {
 				logDir := helpers.ExpandPath(config.Logging.Directory)
-				err := os.MkdirAll(logDir, 0755)
-				if err != nil {
-					return nil
-				}
-				logPath := filepath.Join(logDir, "vanish.log")
-				logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-				if err == nil {
-					defer logFile.Close()
-					_, err := logFile.WriteString(fmt.Sprintf("%s ERROR Failed to remove from index: %s\n",
-						time.Now().Format("2006-01-02 15:04:05"), item.ID))
-					if err != nil {
-						return nil
-					}
+				if err := os.MkdirAll(logDir, 0755); err == nil {
+					logPath := filepath.Join(logDir, "vanish.log")
+					if logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+	defer logFile.Close()
+
+	if _, err := logFile.WriteString(fmt.Sprintf("%s ERROR Failed to remove from index: %s\n",
+		time.Now().Format("2006-01-02 15:04:05"), item.ID)); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to write to log file: %v\n", err)
+	}
+}
+
 				}
 			}
 		}
@@ -390,25 +395,22 @@ func restoreFromCache(item types.DeletedItem, config types.Config) tea.Cmd {
 		if config.Logging.Enabled {
 			helpers.LogOperation("RESTORE", item, config)
 		}
-		// if config.Notifications.NotifySuccess {
-		// 	helpers.SendNotification("Vanish", fmt.Sprintf("Restored %s", filepath.Base(item.OriginalPath)), config)
-		// }
 
 		return types.RestoreMsg{Item: item, Err: nil}
 	}
 }
 
+// moveFileToCache moves a file, directory, or symlink to the cache
 func moveFileToCache(filename string, config types.Config) tea.Cmd {
 	return func() tea.Msg {
-
 		// Ensure cache directory exists
 		cacheDir := helpers.ExpandPath(config.Cache.Directory)
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			return types.FileMoveMsg{Err: err}
 		}
 
-		// Get file info
-		stat, err := os.Stat(filename)
+		// Get file info using Lstat (doesn't follow symlinks)
+		stat, err := os.Lstat(filename)
 		if err != nil {
 			return types.FileMoveMsg{Err: err}
 		}
@@ -427,49 +429,66 @@ func moveFileToCache(filename string, config types.Config) tea.Cmd {
 		cacheFilename := fmt.Sprintf("%s-%s-%s", id, timestamp, baseFilename)
 		cachePath := filepath.Join(cacheDir, cacheFilename)
 
+		// Determine file type
+		isSymlink := stat.Mode()&os.ModeSymlink != 0
 		isDir := stat.IsDir()
 		fileCount := 0
 		size := stat.Size()
-		// Handle directories
-		if isDir {
+		linkTarget := ""
+
+		// Handle different file types
+		if isSymlink {
+			// Handle symbolic link
+			linkTarget, err = os.Readlink(filename)
+			if err != nil {
+				return types.FileMoveMsg{Err: fmt.Errorf("failed to read symlink: %v", err)}
+			}
+
+			if err := helpers.MoveSymlink(filename, cachePath); err != nil {
+				return types.FileMoveMsg{Err: fmt.Errorf("failed to move symlink: %v", err)}
+			}
+
+			// For symlinks, size is typically small (just the link itself)
+			size = stat.Size()
+
+		} else if isDir {
+			// Handle directory
 			fileCount, _ = helpers.CountFilesInDirectory(filename)
 			size, _ = helpers.GetDirectorySize(filename)
 
 			if err := helpers.MoveDirectory(filename, cachePath); err != nil {
-				return types.FileMoveMsg{Err: err}
+				return types.FileMoveMsg{Err: fmt.Errorf("failed to move directory: %v", err)}
 			}
+
 		} else {
-			// Handle files
+			// Handle regular file
 			if err := helpers.MoveFile(filename, cachePath); err != nil {
-				return types.FileMoveMsg{Err: err}
+				return types.FileMoveMsg{Err: fmt.Errorf("failed to move file: %v", err)}
 			}
 		}
 
-		// Create enhanced deleted item
+		// Create deleted item with all metadata
 		item := types.DeletedItem{
 			ID:           id,
 			OriginalPath: absPath,
 			DeleteDate:   now,
 			CachePath:    cachePath,
 			IsDirectory:  isDir,
+			IsSymlink:    isSymlink,
+			LinkTarget:   linkTarget,
 			FileCount:    fileCount,
 			Size:         size,
 		}
 
 		// Update index
 		if err := helpers.AddToIndex(item, config); err != nil {
-			return types.FileMoveMsg{Err: err}
+			return types.FileMoveMsg{Err: fmt.Errorf("failed to update index: %v", err)}
 		}
 
 		// Log the operation
 		if config.Logging.Enabled {
 			helpers.LogOperation("DELETE", item, config)
 		}
-
-		// Send notification if enabled
-		// if config.Notifications.NotifySuccess {
-		// 	helpers.SendNotification("Vanish", fmt.Sprintf("Moved %s to cache", filepath.Base(filename)), config)
-		// }
 
 		return types.FileMoveMsg{Item: item, Err: nil}
 	}

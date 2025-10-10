@@ -28,7 +28,7 @@ func ParseArgs(args []string, cfg types.Config) ParsedArgs {
 		arg := args[i]
 		switch arg {
 		case "-h", "--help":
-			ShowUsageFallback(cfg)
+			ShowUsageSmart(cfg)
 			os.Exit(0)
 		case "-t", "--themes":
 			displayer := &MainThemeDisplayer{}

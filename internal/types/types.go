@@ -45,13 +45,15 @@ type Config struct {
 	} `toml:"ui"`
 }
 
-// DeletedItem represents an item in the global index
+// DeletedItem represents an item that has been moved to cache
 type DeletedItem struct {
 	ID           string    `json:"id"`
 	OriginalPath string    `json:"original_path"`
 	DeleteDate   time.Time `json:"delete_date"`
 	CachePath    string    `json:"cache_path"`
 	IsDirectory  bool      `json:"is_directory"`
+	IsSymlink    bool      `json:"is_symlink"`
+	LinkTarget   string    `json:"link_target,omitempty"` // Only populated for symlinks
 	FileCount    int       `json:"file_count,omitempty"`
 	Size         int64     `json:"size"`
 }
@@ -131,3 +133,14 @@ type PurgeMsg struct {
 
 // ErrorMsg is a generic error message used across the application.
 type ErrorMsg string
+
+// ItemType returns a human-readable string describing the item type
+func (item DeletedItem) ItemType() string {
+	if item.IsSymlink {
+		return "symlink"
+	}
+	if item.IsDirectory {
+		return "directory"
+	}
+	return "file"
+}

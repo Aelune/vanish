@@ -2,7 +2,6 @@
 package helpers
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
@@ -213,111 +212,20 @@ func ExpandPath(path string) string {
 	return path
 }
 
-// --- Index Helpers ---
-
-// SaveIndex serializes the provided index to JSON and writes it to disk
-// at the location specified by the given config. Returns an error if
-// marshalling or writing to file fails.
-func SaveIndex(index types.Index, config types.Config) error {
-	indexPath := GetIndexPath(config)
-	data, err := json.MarshalIndent(index, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(indexPath, data, 0644)
-}
-
-// GetIndexPath returns the full path to the index.json file used to
-// store metadata about cached files, based on the provided config.
-func GetIndexPath(config types.Config) string {
-	cacheDir := ExpandPath(config.Cache.Directory)
-	return filepath.Join(cacheDir, "index.json")
-}
-
-// LoadIndex reads and unmarshals the index.json file into an Index struct.
-// If the file does not exist, it returns an empty Index. Returns an error
-// if reading or unmarshalling fails.
-func LoadIndex(config types.Config) (types.Index, error) {
-	var index types.Index
-	indexPath := GetIndexPath(config)
-
-	data, err := os.ReadFile(indexPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Return empty index if file doesn't exist
-			return types.Index{Items: []types.DeletedItem{}}, nil
-		}
-		return index, err
-	}
-
-	err = json.Unmarshal(data, &index)
-	return index, err
-}
-
-// AddToIndex adds a DeletedItem to the index and saves the updated
-// index to disk using the provided config. Returns an error if loading
-// or saving the index fails.
-func AddToIndex(item types.DeletedItem, config types.Config) error {
-	index, err := LoadIndex(config)
-	if err != nil {
-		return err
-	}
-
-	index.Items = append(index.Items, item)
-	return SaveIndex(index, config)
-}
-
-// RemoveFromIndex removes a DeletedItem with the specified ID from the
-// index and saves the updated index to disk. Returns an error if loading
-// or saving the index fails.
-func RemoveFromIndex(itemID string, config types.Config) error {
-	index, err := LoadIndex(config)
-	if err != nil {
-		return err
-	}
-
-	var remainingItems []types.DeletedItem
-	for _, item := range index.Items {
-		if item.ID != itemID {
-			remainingItems = append(remainingItems, item)
-		}
-	}
-
-	index.Items = remainingItems
-	return SaveIndex(index, config)
-}
-
-// --- Logging ---
-
-// LogOperation writes a log entry for the given operation and DeletedItem
-// to the configured logging directory. If the log directory or file does
-// not exist, it attempts to create them.
-func LogOperation(operation string, item types.DeletedItem, config types.Config) {
-	logDir := ExpandPath(config.Logging.Directory)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return
-	}
-
-	logPath := filepath.Join(logDir, "vanish.log")
-	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	defer logFile.Close()
-
-	logEntry := fmt.Sprintf("%s %s %s -> %s (Size: %d bytes)\n",
-		time.Now().Format("2006-01-02 15:04:05"),
-		operation,
-		item.OriginalPath,
-		item.CachePath,
-		item.Size)
-
-	if _, err := logFile.WriteString(logEntry); err != nil {
-		return
-	}
-}
-
 // INIT()
+
+// validatePath checks if a path is valid and accessible
+//func validatePath(path string) error {
+//	// Use Lstat to check without following symlinks
+//	_, err := os.Lstat(path)
+//	if err != nil {
+//		if os.IsNotExist(err) {
+//			return fmt.Errorf("path does not exist: %s", path)
+//		}
+//		return fmt.Errorf("cannot access path: %v", err)
+//	}
+//	return nil
+//}
 
 // ClearAllCache removes all cached files and directories, recreates the
 // cache directory, resets the index, and logs the operation if logging
@@ -515,9 +423,20 @@ func FindNextValidFile(fileInfos []types.FileInfo, startIndex int) int {
 	return -1
 }
 
-// MoveFile moves a file from the source path to the destination path by copying
-// its contents and removing the original. Returns an error if any operation fails.
+// MoveFile moves a file from the source path to the destination path.
+// It handles regular files, symlinks, and special files appropriately.
 func MoveFile(src, dst string) error {
+	// Check if it's a symlink first (before opening)
+	isSymlink, err := IsSymlink(src)
+	if err != nil {
+		return fmt.Errorf("failed to check if symlink: %w", err)
+	}
+
+	if isSymlink {
+		return MoveSymlink(src, dst)
+	}
+
+	// For regular files, use the copy approach
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -530,17 +449,30 @@ func MoveFile(src, dst string) error {
 	}
 	defer destFile.Close()
 
+	// Copy file contents
 	_, err = io.Copy(destFile, sourceFile)
 	if err != nil {
 		return err
 	}
 
+	// Get source file permissions
+	srcInfo, err := sourceFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Set destination file permissions
+	if err := destFile.Chmod(srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	// Remove original file
 	return os.Remove(src)
 }
 
 // MoveDirectory moves a directory from src to dst. Attempts an atomic move
 // using os.Rename first, and falls back to a copy-and-remove approach
-// if that fails
+// if that fails. Properly handles symlinks within directories.
 func MoveDirectory(src, dst string) error {
 	// Use os.Rename for atomic operation when possible (same filesystem)
 	if err := os.Rename(src, dst); err == nil {
@@ -559,11 +491,13 @@ func MoveDirectory(src, dst string) error {
 // destination directory. Preserves file and directory modes. Returns an error
 // if any operation fails.
 func CopyDirectory(src, dst string) error {
-	srcInfo, err := os.Stat(src)
+	// Use Lstat to not follow symlinks when checking source
+	srcInfo, err := os.Lstat(src)
 	if err != nil {
 		return err
 	}
 
+	// Create destination directory
 	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
 		return err
 	}
@@ -577,11 +511,28 @@ func CopyDirectory(src, dst string) error {
 		srcPath := filepath.Join(src, entry.Name())
 		dstPath := filepath.Join(dst, entry.Name())
 
-		if entry.IsDir() {
+		// Check if entry is a symlink
+		isSymlink, err := IsSymlink(srcPath)
+		if err != nil {
+			return err
+		}
+
+		if isSymlink {
+			// Handle symlink
+			linkTarget, err := os.Readlink(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to read symlink %s: %w", srcPath, err)
+			}
+			if err := os.Symlink(linkTarget, dstPath); err != nil {
+				return fmt.Errorf("failed to create symlink %s: %w", dstPath, err)
+			}
+		} else if entry.IsDir() {
+			// Handle directory
 			if err := CopyDirectory(srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {
+			// Handle regular file
 			if err := CopyFile(srcPath, dstPath); err != nil {
 				return err
 			}
@@ -593,6 +544,7 @@ func CopyDirectory(src, dst string) error {
 
 // CopyFile copies a file from src to dst, preserving its permissions.
 // Returns an error if opening, copying, or creating fails.
+// Does not follow symlinks - use MoveSymlink for that.
 func CopyFile(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {

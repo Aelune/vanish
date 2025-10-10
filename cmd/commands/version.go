@@ -6,10 +6,10 @@ import (
 
 // Version information
 const (
-	VERSION = "0.9.0"
-	// BUILD_DATE = "2024-01-15"
-	NAME   = "ares-cinnamon"
-	AUTHOR = "Aelune"
+	VERSION = "0.9.2"
+	// NAME BUILD_DATE = "2024-01-15"
+	NAME = "ares-cinnamon"
+	//AUTHOR = "Aelune"
 )
 
 // func PrintVersion() {
